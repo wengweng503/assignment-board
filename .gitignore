@@ -1,0 +1,13 @@
+# 系统文件
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# 临时文件
+*.log
+*.tmp
+preview.png
+
+# Python 缓存（如果以后加脚本）
+__pycache__/
+*.pyc

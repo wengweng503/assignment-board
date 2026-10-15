@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>作业截止日期看板</title>
+<style>
+  :root {
+    --bg: #f4f5f9;
+    --card: #ffffff;
+    --text: #1f2430;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --brand: #4f46e5;
+    --brand-soft: #eef2ff;
+    --done: #059669;
+    --done-soft: #ecfdf5;
+    --soon: #d97706;
+    --soon-soft: #fffbeb;
+    --overdue: #dc2626;
+    --overdue-soft: #fef2f2;
+    --normal: #2563eb;
+    --normal-soft: #eff6ff;
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(16,24,40,.06), 0 4px 14px rgba(16,24,40,.05);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    padding-bottom: calc(32px + env(safe-area-inset-bottom));
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 16px; }
+
+  header {
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: #fff;
+    padding: 26px 16px 22px;
+  }
+  header .wrap { display: flex; flex-direction: column; gap: 6px; }
+  header h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: .5px; }
+  header .sub { margin: 0; font-size: 13px; opacity: .92; }
+
+  .notice {
+    display: flex; gap: 8px; align-items: flex-start;
+    background: #fff8e6; border: 1px solid #f3e2b0;
+    color: #8a5a00; border-radius: 10px;
+    padding: 10px 12px; font-size: 13px; margin-top: 14px;
+  }
+  .notice b { font-weight: 600; }
+
+  .stats {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 16px;
+  }
+  .stat {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px 10px; box-shadow: var(--shadow); text-align: center;
+  }
+  .stat .num { font-size: 24px; font-weight: 700; line-height: 1.1; }
+  .stat .lbl { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .stat.total .num { color: var(--brand); }
+  .stat.soon .num { color: var(--soon); }
+  .stat.overdue .num { color: var(--overdue); }
+  .stat.done .num { color: var(--done); }
+
+  .toolbar { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    border: 1px solid var(--border); background: var(--card); color: var(--muted);
+    border-radius: 999px; padding: 8px 14px; font-size: 13px; cursor: pointer;
+    min-height: 40px; transition: .15s;
+  }
+  .chip.active { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 600; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn {
+    border: 1px solid var(--border); background: var(--card); color: var(--text);
+    border-radius: 10px; padding: 10px 14px; font-size: 14px; cursor: pointer;
+    min-height: 44px; transition: .15s; display: inline-flex; align-items: center; gap: 6px;
+    justify-content: center;
+  }
+  .btn:active { transform: scale(.97); }
+  .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 600; }
+  .btn.ghost { color: var(--brand); border-color: var(--brand); background: var(--brand-soft); }
+
+  .list { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .item {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px; box-shadow: var(--shadow); position: relative; overflow: hidden;
+  }
+  .item::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+    background: var(--normal);
+  }
+  .item.st-overdue::before { background: var(--overdue); }
+  .item.st-soon::before { background: var(--soon); }
+  .item.st-done::before { background: var(--done); }
+
+  .item.dim { opacity: .72; }
+  .item .top { display: flex; align-items: flex-start; gap: 10px; }
+  .check {
+    flex: 0 0 auto; width: 26px; height: 26px; margin-top: 2px; cursor: pointer;
+    accent-color: var(--done); 
+  }
+  .item .body { flex: 1 1 auto; min-width: 0; }
+  .item .title { font-size: 16px; font-weight: 600; word-break: break-word; }
+  .item.dim .title { text-decoration: line-through; color: var(--muted); }
+  .item .meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .tag { font-size: 12px; border-radius: 6px; padding: 2px 8px; }
+  .tag.course { background: var(--normal-soft); color: var(--normal); }
+  .tag.st-overdue { background: var(--overdue-soft); color: var(--overdue); }
+  .tag.st-soon { background: var(--soon-soft); color: var(--soon); }
+  .tag.st-done { background: var(--done-soft); color: var(--done); }
+  .tag.st-normal { background: var(--normal-soft); color: var(--normal); }
+
+  .item .deadline { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .item .deadline .when { font-weight: 600; }
+  .item .deadline .when.overdue { color: var(--overdue); }
+  .item .deadline .when.soon { color: var(--soon); }
+
+  .item .ops { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .op {
+    border: 1px solid var(--border); background: #fafafa; color: var(--text);
+    border-radius: 8px; padding: 7px 12px; font-size: 13px; cursor: pointer;
+    min-height: 40px; transition: .15s;
+  }
+  .op:active { transform: scale(.96); }
+  .op.danger { color: var(--overdue); }
+
+  .empty {
+    text-align: center; color: var(--muted); padding: 48px 16px; font-size: 14px;
+  }
+  .empty .big { font-size: 40px; margin-bottom: 8px; }
+
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 24px; }
+
+  /* Modal */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,.5);
+    display: none; align-items: flex-end; justify-content: center; z-index: 50;
+    padding: 12px;
+  }
+  .overlay.show { display: flex; }
+  .sheet {
+    background: var(--card); width: 100%; max-width: 460px; border-radius: 18px;
+    padding: 20px 18px calc(18px + env(safe-area-inset-bottom)); box-shadow: 0 20px 50px rgba(0,0,0,.25);
+    max-height: 92vh; overflow-y: auto;
+  }
+  .sheet h2 { margin: 0 0 16px; font-size: 18px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .field input[type=text], .field input[type=datetime-local] {
+    width: 100%; border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; font-size: 16px; font-family: inherit; color: var(--text);
+    background: #fff; min-height: 46px;
+  }
+  .field input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+  .switch { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+  .switch input { width: 20px; height: 20px; accent-color: var(--done); }
+  .sheet .row { display: flex; gap: 10px; margin-top: 6px; }
+  .sheet .row .btn { flex: 1; }
+  .sheet .btn.full { width: 100%; }
+
+  .confirm-text { font-size: 15px; margin: 4px 0 18px; word-break: break-word; }
+
+  /* Toast */
+  #toast {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    background: #111827; color: #fff; border-radius: 999px; padding: 12px 18px;
+    font-size: 14px; z-index: 100; display: none; max-width: 90vw; text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,.3);
+  }
+  #toast.show { display: block; }
+  #toast button { background: none; border: none; color: #a5b4fc; font-size: 14px; cursor: pointer; margin-left: 8px; font-weight: 600; }
+
+  @media (max-width: 480px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .stat .num { font-size: 22px; }
+    header h1 { font-size: 20px; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>📚 作业截止日期看板</h1>
+      <p class="sub">管理作业与截止时间 · 增删改查 · 本地保存</p>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="notice">
+      <span>⚠️</span>
+      <span><b>数据仅保存在当前浏览器（本地存储），不与其他设备同步。</b>在手机上添加的记录不会出现在电脑上，反之亦然。</span>
+    </div>
+
+    <section class="stats" id="stats"></section>
+
+    <div class="toolbar">
+      <div class="filters" id="filters">
+        <button class="chip active" data-f="all">全部</button>
+        <button class="chip" data-f="active">进行中</button>
+        <button class="chip" data-f="soon">即将到期</button>
+        <button class="chip" data-f="overdue">已逾期</button>
+        <button class="chip" data-f="done">已完成</button>
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="btnAdd">＋ 添加作业</button>
+        <button class="btn ghost" id="btnExport">⇩ 导出 JSON</button>
+        <button class="btn ghost" id="btnImport">⇧ 导入 JSON</button>
+      </div>
+    </div>
+
+    <section class="list" id="list"></section>
+  </div>
+
+  <footer>作业按截止时间排序 · 即将到期 = 48 小时内 · 数据保存在本浏览器</footer>
+
+  <!-- 添加 / 编辑 表单 -->
+  <div class="overlay" id="formOverlay">
+    <div class="sheet">
+      <h2 id="formTitle">添加作业</h2>
+      <form id="form" novalidate>
+        <div class="field">
+          <label for="fCourse">课程</label>
+          <input type="text" id="fCourse" placeholder="例如：高等数学">
+        </div>
+        <div class="field">
+          <label for="fTitle">作业标题</label>
+          <input type="text" id="fTitle" placeholder="例如：第 5 章习题">
+        </div>
+        <div class="field">
+          <label for="fDeadline">截止时间</label>
+          <input type="datetime-local" id="fDeadline">
+        </div>
+        <div class="field">
+          <label class="switch"><input type="checkbox" id="fDone"> 标记为已完成</label>
+        </div>
+        <div class="row">
+          <button type="button" class="btn" id="btnCancel">取消</button>
+          <button type="submit" class="btn primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 删除确认 -->
+  <div class="overlay" id="confirmOverlay">
+    <div class="sheet">
+      <h2>删除作业</h2>
+      <p class="confirm-text" id="confirmText">确定要删除这条作业吗？</p>
+      <div class="row">
+        <button type="button" class="btn" id="btnConfirmCancel">取消</button>
+        <button type="button" class="btn" style="background:var(--overdue);border-color:var(--overdue);color:#fff;" id="btnConfirmDelete">删除</button>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="fileInput" accept=".json,application/json" style="display:none">
+
+  <div id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var STORAGE_KEY = 'assignmentBoard.v1';
+  var SOON_MS = 48 * 60 * 60 * 1000; // 即将到期：48 小时内
+
+  var state = load();
+  var filter = 'all';
+  var editingId = null;
+  var pendingDeleteId = null;
+  var lastDeleted = null; // { item, index }
+
+  // ---- 工具 ----
+  function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function toLocalInput(d) {
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+      'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  // ---- 数据 ----
+  function seedData() {
+    var now = Date.now();
+    function mk(off) { return toLocalInput(new Date(now + off)); }
+    return [
+      { id: uid(), course: '高等数学', title: '第 5 章课后习题', deadline: mk(-1 * 86400000), completed: false },
+      { id: uid(), course: '大学英语', title: '作文《我的校园生活》', deadline: mk(3 * 3600000), completed: false },
+      { id: uid(), course: '数据结构', title: '链表实验报告', deadline: mk(5 * 86400000), completed: false },
+      { id: uid(), course: '线性代数', title: '矩阵运算练习', deadline: mk(-2 * 86400000), completed: true }
+    ];
+  }
+  function load() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return seedData();
+      var arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    catch (e) { toast('保存失败：' + e.message); }
+  }
+
+  // ---- 状态判断 ----
+  function statusOf(a) {
+    if (a.completed) return 'done';
+    var t = new Date(a.deadline).getTime();
+    if (isNaN(t)) return 'normal';
+    if (Date.now() > t) return 'overdue';
+    if (t - Date.now() <= SOON_MS) return 'soon';
+    return 'normal';
+  }
+  var ST = {
+    done:    { label: '已完成',   cls: 'st-done' },
+    overdue: { label: '已逾期',   cls: 'st-overdue' },
+    soon:    { label: '即将到期', cls: 'st-soon' },
+    normal:  { label: '进行中',   cls: 'st-normal' }
+  };
+
+  function timeInfo(a) {
+    var t = new Date(a.deadline).getTime();
+    if (isNaN(t)) {
+      return { when: '未设置', detail: '无截止时间', cls: '' };
+    }
+    var d = new Date(a.deadline);
+    var detail = d.getFullYear() + ' 年 ' + (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日 ' +
+      pad(d.getHours()) + ':' + pad(d.getMinutes());
+    if (a.completed) return { when: '已完成', detail: detail + ' 截止', cls: 'done' };
+
+    var diff = t - Date.now();
+    var abs = Math.abs(diff);
+    var days = Math.floor(abs / 86400000);
+    var hours = Math.floor((abs % 86400000) / 3600000);
+    var mins = Math.floor((abs % 3600000) / 60000);
+    if (diff < 0) {
+      var when = days > 0 ? '已逾期 ' + days + ' 天'
+        : (hours > 0 ? '已逾期 ' + hours + ' 小时' : '已逾期 ' + Math.max(mins, 1) + ' 分钟');
+      return { when: when, detail: detail + ' 截止', cls: 'overdue' };
+    }
+    if (diff <= SOON_MS) {
+      var soon = days > 0 ? '剩余 ' + days + ' 天 ' + hours + ' 小时'
+        : (hours > 0 ? '剩余 ' + hours + ' 小时' : '剩余 ' + Math.max(mins, 1) + ' 分钟');
+      return { when: soon, detail: detail + ' 截止', cls: 'soon' };
+    }
+    return { when: '剩余 ' + days + ' 天', detail: detail + ' 截止', cls: '' };
+  }
+
+  function sortItems(arr) {
+    return arr.slice().sort(function (a, b) {
+      if (a.completed !== b.completed) return a.completed ? 1 : -1;
+      var ta = new Date(a.deadline).getTime();
+      var tb = new Date(b.deadline).getTime();
+      return (isNaN(ta) ? Infinity : ta) - (isNaN(tb) ? Infinity : tb);
+    });
+  }
+
+  // ---- 渲染 ----
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function renderStats() {
+    var counts = { total: state.length, active: 0, soon: 0, overdue: 0, done: 0 };
+    state.forEach(function (a) {
+      var s = statusOf(a);
+      if (s === 'done') counts.done++;
+      else { counts.active++; }
+      if (s === 'soon') counts.soon++;
+      if (s === 'overdue') counts.overdue++;
+    });
+    document.getElementById('stats').innerHTML =
+      '<div class="stat total"><div class="num">' + counts.total + '</div><div class="lbl">全部</div></div>' +
+      '<div class="stat soon"><div class="num">' + counts.soon + '</div><div class="lbl">即将到期</div></div>' +
+      '<div class="stat overdue"><div class="num">' + counts.overdue + '</div><div class="lbl">已逾期</div></div>' +
+      '<div class="stat done"><div class="num">' + counts.done + '</div><div class="lbl">已完成</div></div>';
+  }
+
+  function renderList() {
+    var items = sortItems(state).filter(function (a) {
+      if (filter === 'all') return true;
+      if (filter === 'active') return !a.completed;
+      return statusOf(a) === filter;
+    });
+
+    var listEl = document.getElementById('list');
+    if (items.length === 0) {
+      listEl.innerHTML = '<div class="empty"><div class="big">🗒️</div>暂无作业，点击「添加作业」开始吧</div>';
+      return;
+    }
+
+    listEl.innerHTML = items.map(function (a) {
+      var st = statusOf(a);
+      var stInfo = ST[st];
+      var ti = timeInfo(a);
+      var doneAttr = a.completed ? ' checked' : '';
+      return '' +
+        '<div class="item ' + stInfo.cls + (a.completed ? ' dim' : '') + '" data-id="' + esc(a.id) + '">' +
+          '<div class="top">' +
+            '<input type="checkbox" class="check" title="标记完成"' + doneAttr + '>' +
+            '<div class="body">' +
+              '<div class="title">' + esc(a.title) + '</div>' +
+              '<div class="meta">' +
+                '<span class="tag course">' + esc(a.course) + '</span>' +
+                '<span class="tag ' + stInfo.cls + '">' + stInfo.label + '</span>' +
+              '</div>' +
+              '<div class="deadline">🕒 <span class="when ' + ti.cls + '">' + esc(ti.when) + '</span> · ' + esc(ti.detail) + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="ops">' +
+            '<button class="op edit">✏️ 编辑</button>' +
+            '<button class="op toggle">' + (a.completed ? '↩️ 取消完成' : '✅ 标记完成') + '</button>' +
+            '<button class="op danger del">🗑️ 删除</button>' +
+          '</div>' +
+        '</div>';
+    }).join('');
+  }
+
+  function render() {
+    renderStats();
+    renderList();
+  }
+
+  // ---- Toast ----
+  var toastTimer = null;
+  var toastUndo = null;
+  function toast(msg, undoFn) {
+    var t = document.getElementById('toast');
+    t.innerHTML = esc(msg);
+    toastUndo = null;
+    if (undoFn) {
+      var b = document.createElement('button');
+      b.textContent = '撤销';
+      b.onclick = function () { undoFn(); hideToast(); };
+      t.appendChild(b);
+      toastUndo = undoFn;
+    }
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, undoFn ? 5000 : 2400);
+  }
+  function hideToast() {
+    document.getElementById('toast').classList.remove('show');
+    clearTimeout(toastTimer);
+  }
+
+  // ---- 表单 ----
+  var formOverlay = document.getElementById('formOverlay');
+  var confirmOverlay = document.getElementById('confirmOverlay');
+  var form = document.getElementById('form');
+
+  function openForm(item) {
+    editingId = item ? item.id : null;
+    document.getElementById('formTitle').textContent = item ? '编辑作业' : '添加作业';
+    document.getElementById('fCourse').value = item ? item.course : '';
+    document.getElementById('fTitle').value = item ? item.title : '';
+    document.getElementById('fDeadline').value = item ? item.deadline : '';
+    document.getElementById('fDone').checked = item ? !!item.completed : false;
+    formOverlay.classList.add('show');
+    setTimeout(function () { document.getElementById('fCourse').focus(); }, 50);
+  }
+  function closeForm() { formOverlay.classList.remove('show'); }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var course = document.getElementById('fCourse').value.trim();
+    var title = document.getElementById('fTitle').value.trim();
+    var deadline = document.getElementById('fDeadline').value;
+    var completed = document.getElementById('fDone').checked;
+
+    if (!title) { toast('请填写作业标题'); return; }
+    if (!course) { toast('请填写课程名称'); return; }
+    if (!deadline) { toast('请选择截止时间'); return; }
+
+    if (editingId) {
+      var it = state.find(function (x) { return x.id === editingId; });
+      if (it) { it.course = course; it.title = title; it.deadline = deadline; it.completed = completed; }
+      toast('已保存修改');
+    } else {
+      state.push({ id: uid(), course: course, title: title, deadline: deadline, completed: completed });
+      toast('已添加作业');
+    }
+    save(); closeForm(); render();
+  });
+
+  // ---- 删除 + 撤销 ----
+  function askDelete(id) {
+    var it = state.find(function (x) { return x.id === id; });
+    if (!it) return;
+    pendingDeleteId = id;
+    document.getElementById('confirmText').textContent = '确定要删除「' + it.title + '」吗？删除后可在下方提示中撤销。';
+    confirmOverlay.classList.add('show');
+  }
+  function doDelete() {
+    if (!pendingDeleteId) return;
+    var idx = state.findIndex(function (x) { return x.id === pendingDeleteId; });
+    if (idx >= 0) {
+      lastDeleted = { item: state[idx], index: idx };
+      state.splice(idx, 1);
+      save(); render();
+      toast('已删除「' + lastDeleted.item.title + '」', function () {
+        if (lastDeleted) {
+          state.splice(Math.min(lastDeleted.index, state.length), 0, lastDeleted.item);
+          lastDeleted = null; save(); render();
+        }
+      });
+    }
+    pendingDeleteId = null;
+    confirmOverlay.classList.remove('show');
+  }
+
+  // ---- 导入 / 导出 ----
+  function exportJSON() {
+    var blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = '作业截止看板备份-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    toast('已导出 ' + state.length + ' 条记录');
+  }
+  function importJSON(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var data = JSON.parse(reader.result);
+        if (!Array.isArray(data)) throw new Error('不是有效的数组格式');
+        var normalized = data.map(function (x) {
+          return {
+            id: x.id || uid(),
+            course: String(x.course == null ? '' : x.course),
+            title: String(x.title == null ? '' : x.title),
+            deadline: String(x.deadline == null ? '' : x.deadline),
+            completed: !!x.completed
+          };
+        }).filter(function (x) { return x.title.trim() !== ''; });
+        if (data.length > 0 && normalized.length === 0) throw new Error('没有可导入的有效记录');
+        state = normalized;
+        save(); render();
+        toast('已导入 ' + state.length + ' 条记录');
+      } catch (err) {
+        alert('导入失败：' + err.message);
+      }
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  // ---- 事件绑定 ----
+  document.getElementById('btnAdd').addEventListener('click', function () { openForm(null); });
+  document.getElementById('btnCancel').addEventListener('click', closeForm);
+  document.getElementById('btnConfirmCancel').addEventListener('click', function () {
+    pendingDeleteId = null; confirmOverlay.classList.remove('show');
+  });
+  document.getElementById('btnConfirmDelete').addEventListener('click', doDelete);
+  document.getElementById('btnExport').addEventListener('click', exportJSON);
+  document.getElementById('btnImport').addEventListener('click', function () {
+    document.getElementById('fileInput').click();
+  });
+  document.getElementById('fileInput').addEventListener('change', function (e) {
+    if (e.target.files && e.target.files[0]) importJSON(e.target.files[0]);
+    e.target.value = '';
+  });
+
+  document.getElementById('filters').addEventListener('click', function (e) {
+    var chip = e.target.closest('.chip');
+    if (!chip) return;
+    filter = chip.getAttribute('data-f');
+    var chips = document.querySelectorAll('#filters .chip');
+    chips.forEach(function (c) { c.classList.remove('active'); });
+    chip.classList.add('active');
+    render();
+  });
+
+  document.getElementById('list').addEventListener('click', function (e) {
+    var item = e.target.closest('.item');
+    if (!item) return;
+    var id = item.getAttribute('data-id');
+    var op = e.target.closest('.op');
+    if (op) {
+      if (op.classList.contains('edit')) { openForm(state.find(function (x) { return x.id === id; })); }
+      else if (op.classList.contains('toggle')) {
+        var a = state.find(function (x) { return x.id === id; });
+        if (a) { a.completed = !a.completed; save(); render(); toast(a.completed ? '已标记完成' : '已取消完成'); }
+      }
+      else if (op.classList.contains('del')) { askDelete(id); }
+      return;
+    }
+    // 点击复选框
+    if (e.target.classList.contains('check')) {
+      var it = state.find(function (x) { return x.id === id; });
+      if (it) { it.completed = e.target.checked; save(); render(); toast(it.completed ? '已标记完成' : '已取消完成'); }
+    }
+  });
+
+  // 点击遮罩空白关闭
+  formOverlay.addEventListener('click', function (e) { if (e.target === formOverlay) closeForm(); });
+  confirmOverlay.addEventListener('click', function (e) {
+    if (e.target === confirmOverlay) { pendingDeleteId = null; confirmOverlay.classList.remove('show'); }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
